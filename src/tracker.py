@@ -92,12 +92,12 @@ async def async_main():
 
                 for res in results:
                     r = res["route"]
-                    r_name = r.get("name") or f"{r.get('from')} ➔ {r.get('to')}"
+                    r_name = r.get("name") or f"{r.get('from')} -> {r.get('to')}"
                     r_key = f"{r.get('from')}_{r.get('to')}_{r.get('date')}_{str(r.get('train', ''))}"
                     req_trains = res.get("req_trains", [])
 
                     if res.get("error"):
-                        print(f"   ❌ {r_name}: Ошибка - {res['error']}")
+                        print(f"   [ERROR] {r_name}: Ошибка - {res['error']}")
                         continue
 
                     all_trains = res.get("all_trains", [])
@@ -112,21 +112,21 @@ async def async_main():
                             ]
                             if not matched_specific:
                                 sch_hint = f" (в расписании есть: {', '.join(actual_train_nums)})" if actual_train_nums else ""
-                                print(f"   ⚪ {r_name}: Поезд №{req_num} НЕ НАЙДЕН на эту дату{sch_hint}")
+                                print(f"   [-] {r_name}: Поезд №{req_num} НЕ НАЙДЕН на эту дату{sch_hint}")
                             else:
                                 for t in matched_specific:
                                     t_num = t.get("trainNumber") or req_num
-                                    times_str = f"{t.get('depTime')} ➔ {t.get('arrTime')}"
+                                    times_str = f"{t.get('depTime')} -> {t.get('arrTime')}"
                                     if t in available:
-                                        print(f"   🎉 {r_name}: Поезд №{t_num} ({times_str}) — НАЙДЕНЫ БИЛЕТЫ ({t.get('carInfo')})!")
+                                        print(f"   [+] {r_name}: Поезд №{t_num} ({times_str}) — НАЙДЕНЫ БИЛЕТЫ ({t.get('carInfo')})!")
                                     else:
-                                        print(f"   ⚪ {r_name}: Поезд №{t_num} ({times_str}) — найден, но МЕСТ НЕТ")
+                                        print(f"   [*] {r_name}: Поезд №{t_num} ({times_str}) — найден, но МЕСТ НЕТ")
                     else:
                         if available:
                             t_nums = ", ".join([f"№{t.get('trainNumber')}" for t in available])
-                            print(f"   🎉 {r_name}: НАЙДЕНЫ БИЛЕТЫ на поезда: {t_nums}")
+                            print(f"   [+] {r_name}: НАЙДЕНЫ БИЛЕТЫ на поезда: {t_nums}")
                         else:
-                            print(f"   ⚪ {r_name}: В расписании {len(all_trains)} поезд(а/ов), но свободных мест сейчас нет")
+                            print(f"   [*] {r_name}: В расписании {len(all_trains)} поезд(а/ов), но свободных мест сейчас нет")
 
                     if available:
                         routes_with_tickets.append(res)
@@ -139,7 +139,7 @@ async def async_main():
 
                 # Отправка единого уведомления при появлении новых билетов
                 if routes_with_tickets and has_new_tickets:
-                    print(f"[{now_str}] 📲 Отправка сообщения со скриншотами в Telegram...")
+                    print(f"[{now_str}] [i] Отправка сообщения со скриншотами в Telegram...")
                     play_sound_alert()
 
                     combined_message = format_combined_alert_message(routes_with_tickets)
@@ -151,9 +151,9 @@ async def async_main():
 
                     ok = send_combined_alert(config.BOT_TOKEN, config.CHAT_ID, combined_message, screenshots)
                     if ok:
-                        print(f"[{now_str}] ✅ Сообщение с {len(screenshots)} прикрепленными скриншотами успешно отправлено в Telegram!")
+                        print(f"[{now_str}] [+] Сообщение с {len(screenshots)} прикрепленными скриншотами успешно отправлено в Telegram!")
                     else:
-                        print(f"[{now_str}] ⚠️ Возникла проблема при отправке в Telegram.")
+                        print(f"[{now_str}] [!] Возникла проблема при отправке в Telegram.")
                 elif routes_with_tickets and not has_new_tickets:
                     print(f"[{now_str}] [i] Билеты всё ещё доступны (уведомление уже было отправлено ранее).")
 

@@ -51,7 +51,7 @@ def format_combined_alert_message(found_routes: List[Dict[str, Any]]) -> str:
     гарантированно укладывающееся под скриншотами (до 1024 символов).
     """
     lines = [
-        "🎫 <b>НАЙДЕНЫ БИЛЕТЫ НА ПОЕЗД!</b>\n"
+        "<b>НАЙДЕНЫ БИЛЕТЫ НА ПОЕЗД</b>\n"
     ]
 
     for idx, item in enumerate(found_routes):
@@ -59,7 +59,7 @@ def format_combined_alert_message(found_routes: List[Dict[str, Any]]) -> str:
         trains = item["available_trains"]
         url = item["target_url"]
 
-        name = route.get("name") or f"{route.get('from')} ➔ {route.get('to')}"
+        name = route.get("name") or f"{route.get('from')} -> {route.get('to')}"
         date_str = route.get("date", "")
         try:
             dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -68,22 +68,22 @@ def format_combined_alert_message(found_routes: List[Dict[str, Any]]) -> str:
         except Exception:
             formatted_date = date_str
 
-        direction_icon = "🔹" if "туда" in name.lower() or idx == 0 else "🔸"
-        lines.append(f"{direction_icon} <b>{name}</b> ({formatted_date})")
+        direction_label = "[ТУДА]" if "туда" in name.lower() or idx == 0 else "[ОБРАТНО]"
+        lines.append(f"{direction_label} <b>{name}</b> ({formatted_date})")
 
         for t in trains:
             num = t.get("trainNumber") or "Поезд"
-            dep = t.get("depTime") or "—"
-            arr = t.get("arrTime") or "—"
+            dep = t.get("depTime") or "-"
+            arr = t.get("arrTime") or "-"
             raw_cars = t.get("carInfoList", [])
             cars_str = ", ".join(raw_cars) if raw_cars else t.get("carInfo", "Есть места")
-            lines.append(f"• <b>№{num}</b> ({dep} ➔ {arr}): {cars_str}")
+            lines.append(f"• <b>№{num}</b> ({dep} -> {arr}): {cars_str}")
 
-        dir_label = "ТУДА" if "туда" in name.lower() or idx == 0 else "ОБРАТНО"
-        lines.append(f'🔗 <a href="{url}"><b>Купить билет {dir_label}</b></a>\n')
+        dir_label = "туда" if "туда" in name.lower() or idx == 0 else "обратно"
+        lines.append(f'<a href="{url}"><b>Купить билет ({dir_label})</b></a>\n')
 
     now_time = datetime.now().strftime("%H:%M:%S")
-    lines.append(f"🕒 <i>Обновлено в {now_time}</i>")
+    lines.append(f"<i>Обновлено в {now_time}</i>")
 
     return "\n".join(lines)
 
