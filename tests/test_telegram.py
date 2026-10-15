@@ -1,9 +1,15 @@
 """
 Скрипт проверки связи с Telegram ботом.
-Запустите: python test_telegram.py
+Запуск: python tests/test_telegram.py
 """
 
 import sys
+from pathlib import Path
+
+# Обеспечиваем доступ к пакету src
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 # Обеспечиваем корректный вывод UTF-8 в консоли Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -11,8 +17,9 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-import config
-from telegram_notifier import send_message
+from src import config
+from src.notifier import send_message
+
 
 def main():
     print("=" * 50)
@@ -41,12 +48,13 @@ def main():
 
     if success:
         print("[+] УСПЕХ! Проверьте ваш Telegram — бот отправил тестовое сообщение.")
-        print("Теперь можно запускать основной трекер: python tracker.py")
+        print("Теперь можно запускать основной трекер: python main.py")
     else:
         print("[-] ОШИБКА отправки сообщения. Проверьте следующее:")
         print("1. Вы нажали кнопку 'START' / 'НАЧАТЬ' в диалоге с созданным ботом в Telegram?")
         print("2. Токен бота скопирован полностью и без лишних пробелов?")
         print("3. Chat ID указан корректно (только цифры)?")
+
 
 if __name__ == "__main__":
     main()

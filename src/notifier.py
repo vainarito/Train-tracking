@@ -1,14 +1,12 @@
+"""
+Модуль отправки уведомлений в Telegram (текст, фото, медиагруппы со скриншотами).
+"""
+
 import json
 import re
-import sys
-from typing import Optional, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 import requests
-
-# Обеспечиваем корректный вывод UTF-8 в консоли Windows
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 
 def strip_html_tags(text: str) -> str:
@@ -18,15 +16,14 @@ def strip_html_tags(text: str) -> str:
 
 def _safe_fit_caption(text: Optional[str], limit: int = 1024) -> Optional[str]:
     """
-    Безопасно укладывает текст в лимит Telegram (1024 символа),
-    не разрывая HTML-теги и закрывая все открытые теги.
+    Безопасно укладывает текст подписи в лимит Telegram (1024 символа),
+    не разрывая HTML-теги и автоматически закрывая открытые теги.
     """
     if not text:
         return None
     if len(text) <= limit:
         return text
 
-    # Обрезаем по целым строкам
     lines = text.split("\n")
     result = []
     current_len = 0
@@ -39,7 +36,6 @@ def _safe_fit_caption(text: Optional[str], limit: int = 1024) -> Optional[str]:
     result.append("\n...")
     trimmed = "\n".join(result)
 
-    # Автоматически закрываем незакрытые теги b, i, code, a
     for tag in ("b", "i", "code", "a"):
         open_count = len(re.findall(rf'<{tag}\b[^>]*>', trimmed, re.IGNORECASE))
         close_count = len(re.findall(rf'</{tag}>', trimmed, re.IGNORECASE))
@@ -49,11 +45,51 @@ def _safe_fit_caption(text: Optional[str], limit: int = 1024) -> Optional[str]:
     return trimmed
 
 
+def format_combined_alert_message(found_routes: List[Dict[str, Any]]) -> str:
+    """
+    Формирует структурированное сообщение для Telegram,
+    гарантированно укладывающееся под скриншотами (до 1024 символов).
+    """
+    lines = [
+        "🎫 <b>НАЙДЕНЫ БИЛЕТЫ НА ПОЕЗД!</b>\n"
+    ]
+
+    for idx, item in enumerate(found_routes):
+        route = item["route"]
+        trains = item["available_trains"]
+        url = item["target_url"]
+
+        name = route.get("name") or f"{route.get('from')} ➔ {route.get('to')}"
+        date_str = route.get("date", "")
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+            formatted_date = f"{dt.strftime('%d.%m.%Y')} ({weekdays[dt.weekday()]})"
+        except Exception:
+            formatted_date = date_str
+
+        direction_icon = "🔹" if "туда" in name.lower() or idx == 0 else "🔸"
+        lines.append(f"{direction_icon} <b>{name}</b> ({formatted_date})")
+
+        for t in trains:
+            num = t.get("trainNumber") or "Поезд"
+            dep = t.get("depTime") or "—"
+            arr = t.get("arrTime") or "—"
+            raw_cars = t.get("carInfoList", [])
+            cars_str = ", ".join(raw_cars) if raw_cars else t.get("carInfo", "Есть места")
+            lines.append(f"• <b>№{num}</b> ({dep} ➔ {arr}): {cars_str}")
+
+        dir_label = "ТУДА" if "туда" in name.lower() or idx == 0 else "ОБРАТНО"
+        lines.append(f'🔗 <a href="{url}"><b>Купить билет {dir_label}</b></a>\n')
+
+    now_time = datetime.now().strftime("%H:%M:%S")
+    lines.append(f"🕒 <i>Обновлено в {now_time}</i>")
+
+    return "\n".join(lines)
+
+
 def send_message(token: str, chat_id: str, text: str, parse_mode: Optional[str] = "HTML") -> bool:
-    """
-    Отправляет текстовое сообщение в Telegram через HTTP API.
-    При ошибке парсинга HTML автоматически переотправляет как чистый текст.
-    """
+    """Отправляет текстовое сообщение в Telegram."""
     if not token or not chat_id:
         print("[Telegram] Ошибка: Не указан BOT_TOKEN или CHAT_ID.")
         return False
@@ -74,7 +110,6 @@ def send_message(token: str, chat_id: str, text: str, parse_mode: Optional[str] 
             return True
 
         desc = data.get("description", "")
-        # Если ошибка связана с HTML-тегами, переотправляем чистым текстом
         if "can't parse entities" in desc.lower() and parse_mode:
             clean_text = strip_html_tags(text)
             return send_message(token, chat_id, clean_text, parse_mode=None)
@@ -87,9 +122,7 @@ def send_message(token: str, chat_id: str, text: str, parse_mode: Optional[str] 
 
 
 def send_photo(token: str, chat_id: str, photo_bytes: bytes, caption: Optional[str] = None, parse_mode: Optional[str] = "HTML") -> bool:
-    """
-    Отправляет одно фото (скриншот) в Telegram с прикрепленной подписью.
-    """
+    """Отправляет одно фото с подписью в Telegram."""
     if not token or not chat_id:
         print("[Telegram] Ошибка: Не указан BOT_TOKEN или CHAT_ID.")
         return False
@@ -103,9 +136,7 @@ def send_photo(token: str, chat_id: str, photo_bytes: bytes, caption: Optional[s
         if parse_mode:
             data["parse_mode"] = parse_mode
 
-    files = {
-        "photo": ("ticket.png", photo_bytes, "image/png")
-    }
+    files = {"photo": ("ticket.png", photo_bytes, "image/png")}
 
     try:
         response = requests.post(url, data=data, files=files, timeout=25)
@@ -114,7 +145,6 @@ def send_photo(token: str, chat_id: str, photo_bytes: bytes, caption: Optional[s
             return True
 
         desc = res_json.get("description", "")
-        # Если ошибка в HTML-тегах, пробуем отправить без HTML
         if "can't parse entities" in desc.lower() and parse_mode and clean_caption:
             return send_photo(token, chat_id, photo_bytes, caption=strip_html_tags(clean_caption), parse_mode=None)
 
@@ -126,9 +156,7 @@ def send_photo(token: str, chat_id: str, photo_bytes: bytes, caption: Optional[s
 
 
 def send_media_group(token: str, chat_id: str, photos: List[bytes], caption: Optional[str] = None, parse_mode: Optional[str] = "HTML") -> bool:
-    """
-    Отправляет альбом фото со встроенной подписью прямо на фото.
-    """
+    """Отправляет альбом фото со встроенной подписью на первом фото."""
     if not token or not chat_id:
         print("[Telegram] Ошибка: Не указан BOT_TOKEN или CHAT_ID.")
         return False
@@ -174,12 +202,10 @@ def send_media_group(token: str, chat_id: str, photos: List[bytes], caption: Opt
             return True
 
         desc = res_json.get("description", "")
-        # Если ошибка в HTML-тегах, отправляем альбом с чистым текстом
         if "can't parse entities" in desc.lower() and parse_mode and clean_caption:
             return send_media_group(token, chat_id, photos, caption=strip_html_tags(clean_caption), parse_mode=None)
 
         print(f"[Telegram] Ошибка API sendMediaGroup: {desc}")
-        # Резерв: пробуем отправить первое фото
         if len(photos) > 0:
             return send_photo(token, chat_id, photos[0], caption=caption, parse_mode=parse_mode)
         return False
@@ -191,13 +217,12 @@ def send_media_group(token: str, chat_id: str, photos: List[bytes], caption: Opt
 def send_combined_alert(token: str, chat_id: str, text: str, photos: Optional[List[bytes]] = None) -> bool:
     """
     Универсальная отправка уведомления:
-    - если фото есть -> отправляет фото/альбом с прикрепленным текстом
+    - если есть фото -> отправляет медиагруппу со скриншотами и подписью
     - если фото нет -> текстовое сообщение
     """
     if photos and len(photos) > 0:
         success = send_media_group(token, chat_id, photos, caption=text)
         if not success:
-            # Если отправка фото совсем не удалась, гарантированно отправляем текст
             return send_message(token, chat_id, text)
         return success
     else:

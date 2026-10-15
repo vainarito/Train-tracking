@@ -34,8 +34,9 @@ venv.bak/
 .env.*.local
 *.env
 
-# Personal configuration
+# Personal configuration (routes with real trip dates)
 routes.json
+config/routes.json
 
 # IDE / Editor settings
 .vscode/
